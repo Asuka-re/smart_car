@@ -13,14 +13,16 @@ struct Pose {
 class Executor {
 public:
     explicit Executor(Pose initial = Pose{}) noexcept;
-    void Execute(const std::string& commands) noexcept;
-    Pose Query() const noexcept;
+    void Execute(const std::string& commands) noexcept;   
+    Pose Query() const noexcept;                          
 private:
     Pose pose_;
     bool accel_{false};
+    bool reverse_{false};
     void moveOne() noexcept;
+    void moveBack() noexcept;
     void turnL() noexcept;
     void turnR() noexcept;
 };
 
-} // namespace adas
+} 

@@ -5,47 +5,52 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-include_directories(${PROJECT_SOURCE_DIR}/include)
-
+# 1. 先建库
 add_library(executor STATIC src/executor.cpp)
-target_include_directories(executor PUBLIC ${CMAKE_SOURCE_DIR}/include)
-
-# 输出到顶层 build 目录，方便直接运行
-set_target_properties(executor PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
-  ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
-  LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+target_include_directories(executor PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
 )
 
+# 2. 主程序
 add_executable(executor_app src/main.cpp)
 target_link_libraries(executor_app PRIVATE executor)
-set_target_properties(executor_app PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-# 优先使用本地 vendored googletest；若不存在，直接使用离线简单测试 runner（不再尝试在线下载）
+# 3. GoogleTest 检测
 if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/googletest/CMakeLists.txt")
-  message(STATUS "Using vendored googletest in third_party/googletest")
   add_subdirectory(third_party/googletest)
   set(GTEST_AVAILABLE TRUE)
 else()
-  message(STATUS "Vendored googletest NOT found; will build simple test runner (no googletest).")
   set(GTEST_AVAILABLE FALSE)
 endif()
 
+# 4. 测试可执行文件
 if(GTEST_AVAILABLE)
   add_executable(ExecutorTest tests/ExecutorTest.cpp)
-  target_include_directories(ExecutorTest PRIVATE ${PROJECT_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/third_party/googletest/googletest/include
-    ${CMAKE_SOURCE_DIR}/third_party/googletest/googlemock/include
-  )
+  target_include_directories(ExecutorTest PRIVATE
+                             ${CMAKE_SOURCE_DIR}/include
+                             ${CMAKE_SOURCE_DIR}/third_party/googletest/googletest/include)
   target_link_libraries(ExecutorTest PRIVATE executor GTest::gtest_main)
-  set_target_properties(ExecutorTest PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+  add_dependencies(ExecutorTest executor)
   enable_testing()
-  add_test(NAME ExecutorTest COMMAND ${CMAKE_BINARY_DIR}/ExecutorTest.exe)
+  add_test(NAME ExecutorTest COMMAND ExecutorTest)
 else()
   add_executable(ExecutorTest_simple tests/ExecutorTest_simple.cpp)
-  target_include_directories(ExecutorTest_simple PRIVATE ${PROJECT_SOURCE_DIR}/include)
+  target_include_directories(ExecutorTest_simple PRIVATE ${CMAKE_SOURCE_DIR}/include)
   target_link_libraries(ExecutorTest_simple PRIVATE executor)
-  set_target_properties(ExecutorTest_simple PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
   enable_testing()
-  add_test(NAME ExecutorTest_simple COMMAND ${CMAKE_BINARY_DIR}/ExecutorTest_simple.exe)
+  add_test(NAME ExecutorTest_simple COMMAND ExecutorTest_simple)
 endif()
+
+# 5. 统一输出（仅对已存在目标）
+set(output_targets executor executor_app)
+if(GTEST_AVAILABLE)
+  list(APPEND output_targets ExecutorTest)
+else()
+  list(APPEND output_targets ExecutorTest_simple)
+endif()
+set_target_properties(${output_targets}
+                      PROPERTIES
+                      RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+                      ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+                      LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})

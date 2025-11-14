@@ -19,6 +19,16 @@ void Executor::moveOne() noexcept {
     }
 }
 
+void Executor::moveBack() noexcept {   // 倒车一格
+    switch (pose_.heading) {
+        case 'E': --pose_.x; break;
+        case 'W': ++pose_.x; break;
+        case 'N': --pose_.y; break;
+        case 'S': ++pose_.y; break;
+        default: break;
+    }
+}
+
 void Executor::turnL() noexcept {
     pose_.heading = (pose_.heading == 'N') ? 'W' :
                     (pose_.heading == 'W') ? 'S' :
@@ -39,16 +49,19 @@ void Executor::Execute(const std::string& commands) noexcept {
             case 'F':
                 accel_ = !accel_;
                 break;
+            case 'B':               // 倒车开关
+                reverse_ = !reverse_;
+                break;
             case 'M':
-                moveOne();
-                if (accel_) moveOne();
+                reverse_ ? moveBack() : moveOne();
+                if (accel_) reverse_ ? moveBack() : moveOne();
                 break;
             case 'L':
-                if (accel_) moveOne();
+                if (accel_) reverse_ ? moveBack() : moveOne();
                 turnL();
                 break;
             case 'R':
-                if (accel_) moveOne();
+                if (accel_) reverse_ ? moveBack() : moveOne();
                 turnR();
                 break;
             default:
