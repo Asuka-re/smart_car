@@ -1,28 +1,27 @@
 #pragma once
 #include <string>
-#include <cstdint>
 
 namespace adas {
-
 struct Pose {
-    int32_t x{0};
-    int32_t y{0};
+    int x{};
+    int y{};
     char heading{'N'};
 };
 
 class Executor {
 public:
-    explicit Executor(Pose initial = Pose{}) noexcept;
-    void Execute(const std::string& commands) noexcept;   
-    Pose Query() const noexcept;                          
-private:
-    Pose pose_;
-    bool accel_{false};
-    bool reverse_{false};
-    void moveOne() noexcept;
-    void moveBack() noexcept;
-    void turnL() noexcept;
-    void turnR() noexcept;
+    static Executor* NewExecutor(const Pose& pose = {0, 0, 'N'}) noexcept;
+public:
+    Executor() = default;
+    virtual ~Executor() = default;
+    Executor(const Executor&)            = delete;
+    Executor& operator=(const Executor&) = delete;
+public:
+    virtual void Execute(const std::string& commands) noexcept = 0;
+    virtual Pose Query() const noexcept                        = 0;
 };
 
-} 
+inline bool operator==(const Pose& lhs, const Pose& rhs) noexcept {
+    return lhs.x == rhs.x && lhs.y == rhs.y && lhs.heading == rhs.heading;
+}
+}  // namespace adas

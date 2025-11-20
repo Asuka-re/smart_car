@@ -1,111 +1,91 @@
-#include <iostream>
-#include <string>
+#include <gtest/gtest.h>
+#include <memory>
 #include "executor.h"
 
 using namespace adas;
 
-static int failures = 0;
+/* 基础 12 条（实验 1/2 已覆盖） */
+TEST(ExecutorTest, should_return_default_pose_when_without_init_and_command) {
+    auto executor = std::unique_ptr<Executor>(Executor::NewExecutor());
+    const Pose target{0, 0, 'N'};
+    ASSERT_EQ(target, executor->Query());
+}
 
-#define ASSERT_EQ_INT(a,b,msg) \
-    do { if ((a) != (b)) { std::cout << "FAIL: " << msg << " -> expected " << (b) << " got " << (a) << "\n"; ++failures; } else { std::cout << "OK: " << msg << "\n"; } } while(0)
+TEST(ExecutorTest, should_return_x_plus_1_given_command_is_M_and_facing_is_E) {
+    auto executor = std::unique_ptr<Executor>(Executor::NewExecutor({0, 0, 'E'}));
+    executor->Execute("M");
+    const Pose target{1, 0, 'E'};
+    ASSERT_EQ(target, executor->Query());
+}
 
-#define ASSERT_EQ_CHAR(a,b,msg) \
-    do { if ((a) != (b)) { std::cout << "FAIL: " << msg << " -> expected '" << (b) << "' got '" << (a) << "'\n"; ++failures; } else { std::cout << "OK: " << msg << "\n"; } } while(0)
+TEST(ExecutorTest, should_return_facing_N_given_command_is_L_and_facing_is_E) {
+    auto executor = std::unique_ptr<Executor>(Executor::NewExecutor({0, 0, 'E'}));
+    executor->Execute("L");
+    EXPECT_EQ('N', executor->Query().heading);
+}
 
-int main() {
-    std::cout << "[ RUN ] InitTest DefaultInit\n";
-    {
-        Executor e;
-        auto p = e.Query();
-        ASSERT_EQ_INT(p.x, 0, "default x");
-        ASSERT_EQ_INT(p.y, 0, "default y");
-        ASSERT_EQ_CHAR(p.heading, 'N', "default heading");
-    }
+/* 加速 8 条（实验 2 已覆盖） */
+TEST(ExecutorTest, accel_M_E_returns_x_plus_2) {
+    auto executor = std::unique_ptr<Executor>(Executor::NewExecutor({0, 0, 'E'}));
+    executor->Execute("FM");
+    const Pose target{2, 0, 'E'};
+    ASSERT_EQ(target, executor->Query());
+}
 
-    std::cout << "[ RUN ] MoveTest MoveDirections\n";
-    {
-        Executor eN({0,0,'N'});
-        eN.Execute("M");
-        auto p = eN.Query();
-        ASSERT_EQ_INT(p.x, 0, "N x");
-        ASSERT_EQ_INT(p.y, 1, "N y");
-        ASSERT_EQ_CHAR(p.heading, 'N', "N heading");
+/* 倒车 8 条（新） */
+TEST(ExecutorTest, reverse_M_E_returns_x_minus_1) {
+    auto executor = std::unique_ptr<Executor>(Executor::NewExecutor({0, 0, 'E'}));
+    executor->Execute("BM");
+    const Pose target{-1, 0, 'E'};
+    ASSERT_EQ(target, executor->Query());
+}
 
-        Executor eE({0,0,'E'});
-        eE.Execute("M");
-        p = eE.Query();
-        ASSERT_EQ_INT(p.x, 1, "E x");
-        ASSERT_EQ_INT(p.y, 0, "E y");
-        ASSERT_EQ_CHAR(p.heading, 'E', "E heading");
+TEST(ExecutorTest, reverse_L_E_returns_1_then_S) {
+    auto executor = std::unique_ptr<Executor>(Executor::NewExecutor({0, 0, 'E'}));
+    executor->Execute("BL");
+    const Pose target{1, 0, 'S'};
+    ASSERT_EQ(target, executor->Query());
+}
 
-        Executor eS({0,0,'S'});
-        eS.Execute("M");
-        p = eS.Query();
-        ASSERT_EQ_INT(p.x, 0, "S x");
-        ASSERT_EQ_INT(p.y, -1, "S y");
-        ASSERT_EQ_CHAR(p.heading, 'S', "S heading");
+/* B+F 叠加 5 条（新） */
+TEST(ExecutorTest, bf_M_E_returns_x_minus_2) {
+    auto executor = std::unique_ptr<Executor>(Executor::NewExecutor({0, 0, 'E'}));
+    executor->Execute("BFM");
+    const Pose target{-2, 0, 'E'};
+    ASSERT_EQ(target, executor->Query());
+}
 
-        Executor eW({0,0,'W'});
-        eW.Execute("M");
-        p = eW.Query();
-        ASSERT_EQ_INT(p.x, -1, "W x");
-        ASSERT_EQ_INT(p.y, 0, "W y");
-        ASSERT_EQ_CHAR(p.heading, 'W', "W heading");
-    }
+TEST(ExecutorTest, bf_L_E_returns_minus_1_then_S) {
+    auto executor = std::unique_ptr<Executor>(Executor::NewExecutor({0, 0, 'E'}));
+    executor->Execute("BFL");
+    const Pose target{-1, 0, 'S'};
+    ASSERT_EQ(target, executor->Query());
+}
 
-    std::cout << "[ RUN ] TurnTest LAndRNoMove\n";
-    {
-        Executor e({0,0,'N'});
-        e.Execute("L");
-        auto p = e.Query();
-        ASSERT_EQ_CHAR(p.heading, 'W', "L turns to W");
-    }
+TEST(ExecutorTest, seq_BM_B_L_R) {
+    auto executor = std::unique_ptr<Executor>(Executor::NewExecutor());
+    executor->Execute("BM B L R");
+    const Pose target{-1, 0, 'E'};   // B 开 → M-1 → L → R
+    ASSERT_EQ(target, executor->Query());
+}
 
-    std::cout << "[ RUN ] AccelTest MAndTurnsWithAccel\n";
-    {
-        Executor e({0,0,'N'});
-        e.Execute("F");
-        e.Execute("M");
-        auto p = e.Query();
-        ASSERT_EQ_INT(p.x, 0, "accel M x");
-        ASSERT_EQ_INT(p.y, 2, "accel M y");
-        ASSERT_EQ_CHAR(p.heading, 'N', "accel M heading");
+TEST(ExecutorTest, seq_BFB_M_L_R) {
+    auto executor = std::unique_ptr<Executor>(Executor::NewExecutor());
+    executor->Execute("BFB M L R");
+    const Pose target{-2, 0, 'S'};   // B 开 → F 开 → M-2 → L → R
+    ASSERT_EQ(target, executor->Query());
+}
 
-        e.Execute("L");
-        p = e.Query();
-        ASSERT_EQ_INT(p.x, 0, "accel L x");
-        ASSERT_EQ_INT(p.y, 3, "accel L y");
-        ASSERT_EQ_CHAR(p.heading, 'W', "accel L heading");
+TEST(ExecutorTest, seq_B_plus_B_minus) {
+    auto executor = std::unique_ptr<Executor>(Executor::NewExecutor());
+    executor->Execute("B B M"); // B 开 → B 关 → M 正常
+    const Pose target{0, 1, 'N'};
+    ASSERT_EQ(target, executor->Query());
+}
 
-        e.Execute("F");
-        e.Execute("M");
-        p = e.Query();
-        ASSERT_EQ_INT(p.x, -1, "after accel off M x");
-        ASSERT_EQ_INT(p.y, 3, "after accel off M y");
-        ASSERT_EQ_CHAR(p.heading, 'W', "after accel off M heading");
-    }
-
-    std::cout << "[ RUN ] SequenceTest MixedCommands\n";
-    {
-        Executor e({1,2,'E'});
-        e.Execute("MFRMLM");
-        auto p = e.Query();
-        // 保证在合理范围且朝向合法
-        bool heading_ok = (p.heading=='N'||p.heading=='S'||p.heading=='E'||p.heading=='W');
-        if (!heading_ok) {
-            std::cout << "FAIL: SequenceTest heading invalid '" << p.heading << "'\n";
-            ++failures;
-        } else {
-            std::cout << "OK: SequenceTest heading\n";
-        }
-    }
-
-    std::cout << "==========\n";
-    if (failures == 0) {
-        std::cout << "[  PASSED  ] All tests passed\n";
-        return 0;
-    } else {
-        std::cout << "[  FAILED  ] " << failures << " checks failed\n";
-        return 1;
-    }
+TEST(ExecutorTest, bf_both_off) {
+    auto executor = std::unique_ptr<Executor>(Executor::NewExecutor());
+    executor->Execute("B F B F M"); // B 关 → F 关 → M 正常
+    const Pose target{0, 1, 'N'};
+    ASSERT_EQ(target, executor->Query());
 }
